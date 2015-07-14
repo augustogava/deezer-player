@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+	<!--<![endif]-->
+	<head>
+		<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+		<script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+		<script src="http://e-cdn-files.deezer.com/js/min/dz.js"></script>
+
+<!-- 		<link href='../../css/fix.css' rel='stylesheet' type='text/css'> -->
+		<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+		<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+
+		<style>
+			#player, #navBar {
+			}
+			html{overflow: hidden;}
+
+			#navBar {
+				margin: 0px;
+			}
+
+		</style>
+
+		<script>
+			$(document).ready(function() {
+				initDeezer();
+			});
+
+			function initDeezer() {
+
+				DZ.init({
+					appId : '133913',
+					channelUrl : 'http://www.augustogava.com.br/projects/deezer/channel.php',
+					player : {
+						container : 'player',
+						width : $('.col-md-4').width(),
+						height : $(document).height(),
+						onload : function() {
+						}
+					}
+				});
+
+				DZ.login(function(response) {
+					if (response.authResponse) {
+						console.log('Welcome!  Fetching your information.... ');
+					} else {
+						console.log('User cancelled login or did not fully authorize.');
+					}
+				}, {
+					perms : 'basic_access,email,offline_access,manage_library,manage_community,listening_history'
+				});
+
+				DZ.ready(function(sdk_options) {
+					console.log('DZ SDK is ready', sdk_options);
+
+					DZ.Event.subscribe('current_track', function(track, evt_name){
+						console.info( track.track )						
+						getLyrics( track.track.title, track.track.artist.name );
+					});
+					
+					//DZ.player.playTracks([3135556, 1152226], true);
+
+					loadPlaylists();
+
+				});
+
+				DZ.player.playAlbum(302127);
+			}
+
+			function loadPlaylists() {
+				$("#liPlaylist").addClass("active");
+				DZ.api('/user/me/playlists/', function(response) {
+
+					$("#ulMain").html("<li><a href=\"#\" onclick=\"playList('all')\">All</a></li>");
+
+					$(response.data).each(function(index, val) {
+						$("#ulMain").html($("#ulMain").html() + " <li> <a href=\"#\" onclick=\"playList(" + val.id + ")\"> <img src=\"" + val.picture + "\" width=\"10%\" \> " + val.title + "</a></li>");
+					});
+				});
+
+				loadAllMusicasPlaylists();
+			}
+
+			function loadAllMusicasPlaylists() {
+				DZ.api('/user/me/playlists/', function(response) {
+					var musicas = Array();
+					$(response.data).each(function(index, val) {
+						DZ.api('/playlist/' + val.id, function(responsePlay) {
+							$(responsePlay.tracks.data).each(function(index, val) {
+								musicas[musicas.length] = val.id;
+							});
+
+							adicionaMusicas(musicas)
+						});
+					});
+				});
+			}
+
+			function playList(id) {
+				if (id == "all") {
+					loadAllMusicasPlaylists();
+				} else {
+					DZ.player.playPlaylist(id, false);
+				}
+			}
+
+			function adicionaMusicas(musicas) {
+				DZ.player.playTracks(musicas, false);
+			}
+
+			function getLyrics( nameMusic, artist ){
+				console.info("getlyrics " + nameMusic + " " + artist )
+				$("#lyrics").html("Loading lyrics...");
+				$.ajax({
+					type : "GET",
+					url : "../lyrics/get.php?name=" + nameMusic + " " + artist,
+					success : function(data, textStatus, xhr) {
+						if (xhr.readyState === 4 && xhr.status === 0) {
+							console.info("ERRO loadDados" + d);
+						} else {
+							$("#lyrics").html("Loading lyrics...");
+							if( data == "0"){
+								$("#lyrics").html("Lyrics not found");
+								if( artist != ""){
+									console.info("NAO ACHOUm tentando sem artista")
+									getLyrics(nameMusic, "")
+								}
+							}else{
+								$("#lyrics").html(data);
+							}
+						}
+					},
+					error : function(d) {
+						console.info("ERRO getLyrics" + d);
+					}
+				});
+			}
+		
+			function playMusic( idMusic ){
+				DZ.player.playTracks([idMusic]);
+			}
+
+			function playAlbum( idAlbum ){
+				DZ.player.playAlbum(idAlbum);
+			}
+
+			function changeTab( tabName ){
+				$("#liPlaylist").removeClass("active");
+				$("#liPlayed").removeClass("active");
+				$("#liFav").removeClass("active");
+				$("#liFriends").removeClass("active");
+				$("#liAlbuns").removeClass("active");
+				$("#liArtists").removeClass("active");
+				$("#ulMain").html(" <li><a href=\"#\" \">Loading...</a></li>");
+
+				if( tabName == "fav"){
+					$("#liFav").addClass("active");
+					DZ.api('/user/me/tracks/', function(response) {
+						$("#ulMain").html("");
+						var musicas = Array();
+						$(response.data).each(function(index, val) {
+							$("#ulMain").html($("#ulMain").html() + " <li><a href=\"#\" onclick=\"playMusic(" + val.id + ")\">" + val.title + "</a></li>");	
+							musicas[musicas.length] = val.id;
+						});
+						adicionaMusicas(musicas)
+					
+					});
+				}else if( tabName == "played"){
+					$("#liPlayed").addClass("active");
+					DZ.api('/user/me/charts/', function(response) {
+						$("#ulMain").html("");
+						var musicas = Array();
+						$(response.data).each(function(index, val) {
+							$("#ulMain").html($("#ulMain").html() + " <li><a href=\"#\" onclick=\"playMusic(" + val.id + ")\">" + val.title + "</a></li>");	
+							musicas[musicas.length] = val.id;
+						});
+						adicionaMusicas(musicas)
+					
+					});
+
+				}else if( tabName == "friends"){
+					$("#liFriends").addClass("active");
+					DZ.api('/user/me/followings/', function(response) {
+						$("#ulMain").html("");
+						$(response.data).each(function(index, val) {
+							$("#ulMain").html($("#ulMain").html() + " <li><a href=\"#\"><img src=\"" + val.picture + "\" \> " + val.name + "</a></li>");
+						});
+					});
+				}else if( tabName == "albums"){
+					$("#liAlbuns").addClass("active");
+					DZ.api('/user/me/albums/', function(response) {
+						$("#ulMain").html("");
+						$(response.data).each(function(index, val) {
+							$("#ulMain").html($("#ulMain").html() + " <li><a href=\"#\" onclick=\"playAlbum(" + val.id + ")\">" + val.title + "</a></li>");
+						});
+					});
+				}else if( tabName == "artistas"){
+					$("#liArtists").addClass("active");
+					DZ.api('/user/me/artists/', function(response) {
+						$("#ulMain").html("");
+						$(response.data).each(function(index, val) {
+							$("#ulMain").html($("#ulMain").html() + " <li><a href=\"#\"> <img src=\"" + val.picture + "\" \> " + val.name + "</a></li>");
+						});
+					});
+				}
+
+
+			}
+		</script>
+	</head>
+
+	<body class="main" style="overflow: scroll;">
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-4" style="margin: 0px; padding: 0;">
+					<div id="dz-root"></div>
+					<div id="player"></div>
+				</div>
+				<div class="col-md-3" style="margin: 0px; padding: 0;">
+					<ul class="nav nav-tabs">
+						<li id="liPlaylist" class=""><a href="#" onclick="loadPlaylists();">Playlists</a></li>
+						<li id="liPlayed" class=""><a href="#" onclick="changeTab('played')">+ Played</a></li>						
+						<li id="liFav" class=""><a href="#" onclick="changeTab('fav')">Favs</a></li>
+						<li id="liAlbuns" class=""><a href="#" onclick="changeTab('albums')">Albums</a></li>
+						<li id="liArtists" class=""><a href="#" onclick="changeTab('artistas')">Artistas</a></li>
+						<li id="liFriends" class=""><a href="#" onclick="changeTab('friends')">Friends</a></li>
+					</ul>
+					<div id="navBar">
+						<ul id="ulMain" class="nav nav-tabs nav-stacked"></ul>
+					</div>
+				</div>
+				<div class="col-md-5" style="margin: 0px; text-align: center;" id="lyrics">
+
+				</div>
+			</div>
+		    </div>
+		</div>
+	</body>
+</html>
